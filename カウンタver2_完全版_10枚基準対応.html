@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>歯抜けカウンター v2 完全版</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap');
+    :root {
+      --bg:#0f1117; --surface:#1a1d26; --surface2:#222635; --border:#2e3347;
+      --text:#e8eaf0; --sub:#8890a8; --accent:#4fc3f7; --accent2:#00e5a0;
+      --warn:#ffa040; --danger:#ff5a5a;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+    .header{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:12px;}
+    .header-icon{width:36px;height:36px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+    .header h1{font-size:16px;font-weight:700;}
+    .header .version{margin-left:auto;font-size:11px;color:var(--sub);background:var(--surface2);padding:3px 8px;border-radius:999px;border:1px solid var(--border);}
+    .layout{display:flex;height:calc(100vh - 61px);}
+    .sidebar{width:300px;min-width:300px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;transition:width 0.2s,min-width 0.2s;}
+    .sidebar.collapsed{width:0;min-width:0;}
+    .sidebar-toggle{position:absolute;left:300px;top:80px;z-index:10;width:20px;height:48px;background:var(--surface2);border:1px solid var(--border);border-left:none;border-radius:0 8px 8px 0;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:10px;transition:left 0.2s;}
+    .sidebar.collapsed ~ .sidebar-toggle{left:0;}
+    .tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;}
+    .tab-btn{flex:1;padding:10px 4px;font-size:12px;background:transparent;color:var(--sub);border:none;border-bottom:2px solid transparent;cursor:pointer;font-family:inherit;transition:all 0.15s;}
+    .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+    .tab-content{display:none;flex:1;overflow-y:auto;padding:12px;}
+    .tab-content.active{display:block;}
+    .section-label{font-size:10px;color:var(--sub);letter-spacing:.08em;text-transform:uppercase;margin:14px 0 6px;}
+    .section-label:first-child{margin-top:0;}
+    .form-row{display:flex;gap:6px;margin-bottom:6px;}
+    .form-group{flex:1;display:flex;flex-direction:column;gap:3px;}
+    .form-group label{font-size:11px;color:var(--sub);}
+    .form-group input,.form-group select{background:var(--bg);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:7px 9px;font-size:13px;font-family:'JetBrains Mono',monospace;width:100%;outline:none;transition:border-color .15s;}
+    .form-group input:focus,.form-group select:focus{border-color:var(--accent);}
+    .form-group select option{background:#1a1d26;}
+    .action-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px;border-bottom:1px solid var(--border);flex-shrink:0;}
+    .action-grid .btn-full{grid-column:1/-1;}
+    .btn{border:none;border-radius:9px;padding:10px 12px;font-size:13px;font-family:'Noto Sans JP',sans-serif;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:opacity .15s,transform .1s;white-space:nowrap;}
+    .btn:active{transform:scale(.96);}
+    .btn:disabled{opacity:.4;cursor:not-allowed;}
+    .btn-primary{background:var(--accent);color:#0f1117;}
+    .btn-success{background:var(--accent2);color:#0f1117;}
+    .btn-warn{background:var(--warn);color:#0f1117;}
+    .btn-danger{background:var(--danger);color:#fff;}
+    .btn-ghost{background:var(--surface2);color:var(--text);border:1px solid var(--border);}
+    @keyframes pulse-btn{0%,100%{opacity:1;}50%{opacity:.7;}}
+    .main-area{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;}
+    .result-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:16px;flex-shrink:0;}
+    .count-display{display:flex;align-items:baseline;gap:6px;}
+    .count-number{font-family:'JetBrains Mono',monospace;font-size:52px;font-weight:700;color:var(--accent2);line-height:1;letter-spacing:-2px;transition:color .3s;}
+    .count-number.danger{color:var(--danger);}
+    .count-label{font-size:13px;color:var(--sub);}
+    .status-pill{padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;background:var(--surface2);color:var(--sub);border:1px solid var(--border);transition:all .3s;}
+    .status-pill.ready{background:#1a2e1a;color:var(--accent2);border-color:var(--accent2);}
+    .status-pill.running{background:#2e1a00;color:var(--warn);border-color:var(--warn);animation:pulse-btn 1s infinite;}
+    .status-pill.camera{background:#0a1e2e;color:var(--accent);border-color:var(--accent);}
+    .result-detail{font-size:12px;color:var(--sub);margin-left:auto;text-align:right;}
+    .canvas-area{flex:1;overflow:auto;background:#080a0f;position:relative;}
+    canvas{display:block;touch-action:none;cursor:grab;background:#080a0f;max-width:100%;height:auto;}
+    canvas.grabbing{cursor:grabbing;}
+    canvas.resize-cursor{cursor:nwse-resize;}
+    .canvas-hint{position:absolute;bottom:12px;right:12px;background:rgba(15,17,23,.85);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--sub);pointer-events:none;}
+    .message-box{margin:10px 12px 0;padding:10px 12px;background:#2b1e10;border:1px solid #6b4d1f;border-radius:8px;color:#ffd89a;font-size:12px;display:none;line-height:1.6;}
+    .message-box.show{display:block;}
+    .log-list{list-style:none;}
+    .log-item{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;}
+    .log-time{font-family:'JetBrains Mono',monospace;color:var(--sub);font-size:11px;flex-shrink:0;width:58px;}
+    .log-count{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--accent2);width:36px;flex-shrink:0;}
+    .log-count.danger{color:var(--danger);}
+    .log-note{color:var(--sub);flex:1;font-size:11px;}
+    .log-clear-btn{width:100%;margin-top:10px;}
+    ::-webkit-scrollbar{width:6px;height:6px;}
+    ::-webkit-scrollbar-track{background:transparent;}
+    ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+    .file-drop{border:2px dashed var(--border);border-radius:10px;padding:14px;text-align:center;cursor:pointer;color:var(--sub);font-size:12px;transition:border-color .15s,background .15s;position:relative;}
+    .file-drop:hover{border-color:var(--accent);background:rgba(79,195,247,.04);}
+    .file-drop input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+    .file-drop .drop-icon{font-size:22px;margin-bottom:4px;}
+    .threshold-row{display:flex;align-items:center;gap:8px;margin-top:6px;}
+    .threshold-row label{font-size:12px;color:var(--sub);white-space:nowrap;}
+
+    .sidebar.mobile-open{
+      display:flex !important;
+      width:100% !important;
+      min-width:100% !important;
+      position:fixed !important;
+      top:61px !important;
+      bottom:56px !important;
+      left:0 !important;
+      z-index:100 !important;
+    }
+
+    @media(max-width:640px){
+      .sidebar{width:100%;min-width:100%;position:fixed;top:61px;bottom:56px;left:0;z-index:100;display:none;}
+      .sidebar-toggle{display:none;}
+      .count-number{font-size:38px;}
+      .layout{flex-direction:column;}
+      .mobile-bar{display:flex!important;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);z-index:50;padding:8px 10px;gap:8px;}
+      .mobile-bar .btn{flex:1;font-size:12px;padding:10px 4px;}
+    }
+    @media(min-width:641px){.mobile-bar{display:none!important;}}
+  </style>
+</head>
+<body>
+<div class="header">
+  <div class="header-icon">🔍</div>
+  <div><h1>歯抜けカウンター</h1></div>
+  <span class="version">ver 2.2 完全版</span>
+</div>
+<div class="layout">
+  <div class="sidebar" id="sidebar">
+    <div class="action-grid">
+      <button class="btn btn-primary btn-full" id="analyzeBtn">▶ 1回解析</button>
+      <button class="btn btn-ghost" id="startCameraBtn">📷 カメラ開始</button>
+      <button class="btn btn-success" id="startRealtimeBtn">🔴 スタート</button>
+      <button class="btn btn-warn" id="stopRealtimeBtn">⏹ ストップ</button>
+      <button class="btn btn-ghost" id="resetImageBtn">🔄 画像再表示</button>
+      <button class="btn btn-ghost" id="createBoxBtn">⬜ 枠を更新</button>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="source">入力</button>
+      <button class="tab-btn" data-tab="detect">検出</button>
+      <button class="tab-btn" data-tab="filter">フィルタ</button>
+      <button class="tab-btn" data-tab="log">履歴</button>
+    </div>
+    <div class="tab-content active" id="tab-source">
+      <div id="messageBox" class="message-box"></div>
+      <div class="section-label">画像ファイル</div>
+      <div class="file-drop"><div class="drop-icon">🖼️</div><div>解析する画像を選択</div><input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/bmp" /></div>
+      <div class="section-label" style="margin-top:12px">基準画像（最大10枚・差分用・任意）</div>
+      <div class="file-drop"><div class="drop-icon">📋</div><div>基準画像を最大10枚選択</div><input type="file" id="refFileInput" accept="image/png,image/jpeg,image/webp,image/bmp" multiple /></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--sub);line-height:1.6;" id="refFileCount">基準画像: 0枚</div>
+      <div class="section-label">検出枠の位置・サイズ</div>
+      <div class="form-row">
+        <div class="form-group"><label>X 位置</label><input type="number" id="startX" value="50" /></div>
+        <div class="form-group"><label>Y 位置</label><input type="number" id="startY" value="50" /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>幅</label><input type="number" id="boxW" value="350" /></div>
+        <div class="form-group"><label>高さ</label><input type="number" id="boxH" value="250" /></div>
+      </div>
+      <div class="section-label">アラートしきい値</div>
+      <div class="threshold-row">
+        <label>不良品が</label>
+        <div class="form-group" style="flex:0 0 65px"><input type="number" id="alertThreshold" value="0" min="0" /></div>
+        <label>個超で警告</label>
+      </div>
+      <div class="section-label">設定の保存</div>
+      <div class="form-row">
+        <button class="btn btn-ghost" style="flex:1" id="saveSettingsBtn">💾 保存</button>
+        <button class="btn btn-ghost" style="flex:1" id="loadSettingsBtn">📂 読込</button>
+        <button class="btn btn-danger" style="flex:0 0 auto;padding:10px 12px;" id="clearSettingsBtn">🗑</button>
+      </div>
+    </div>
+    <div class="tab-content" id="tab-detect">
+      <div class="section-label">検出方法</div>
+      <div class="form-group"><label>方法</label>
+        <select id="methodSelect">
+          <option value="brightness">明るさ閾値</option>
+          <option value="contrast">局所コントラスト</option>
+          <option value="referenceDiff">基準画像との差分</option>
+          <option value="hybrid" selected>高精度ハイブリッド</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-top:8px"><label>検出対象</label>
+        <select id="detectMode">
+          <option value="dark" selected>暗い丸（黒丸）</option>
+          <option value="bright">明るい丸（白丸）</option>
+        </select>
+      </div>
+      <div class="section-label">しきい値</div>
+      <div class="form-row">
+        <div class="form-group"><label>明るさ (0-255)</label><input type="number" id="threshold" value="90" min="0" max="255" /></div>
+        <div class="form-group"><label>差分 (0-255)</label><input type="number" id="diffThreshold" value="30" min="0" max="255" /></div>
+      </div>
+      <div class="form-group"><label>局所コントラスト</label><input type="number" id="contrastThreshold" value="16" min="0" max="255" /></div>
+      <div class="form-group" style="margin-top:8px"><label>統合距離 (px)</label><input type="number" id="mergeDistance" value="12" min="0" /></div>
+    </div>
+    <div class="tab-content" id="tab-filter">
+      <div class="section-label">面積フィルタ（px²）</div>
+      <div class="form-row">
+        <div class="form-group"><label>最小面積</label><input type="number" id="minArea" value="80" min="1" /></div>
+        <div class="form-group"><label>最大面積</label><input type="number" id="maxArea" value="2500" min="1" /></div>
+      </div>
+      <div class="section-label">直径フィルタ（px）</div>
+      <div class="form-row">
+        <div class="form-group"><label>最小直径</label><input type="number" id="minDiameter" value="8" min="1" /></div>
+        <div class="form-group"><label>最大直径</label><input type="number" id="maxDiameter" value="80" min="1" /></div>
+      </div>
+      <div class="section-label">円形度</div>
+      <div class="form-group"><label>最小円形度（0〜1）</label><input type="number" id="minCircularity" value="0.45" min="0" max="1" step="0.01" /></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--sub);line-height:1.6;">1.0 = 完全な円。値を下げると楕円や変形した丸も検出します。</div>
+    </div>
+    <div class="tab-content" id="tab-log">
+      <ul class="log-list" id="logList"><li style="color:var(--sub);font-size:12px;padding:8px 0;">解析を実行すると履歴が記録されます</li></ul>
+      <button class="btn btn-ghost log-clear-btn" id="clearLogBtn">🗑 履歴をクリア</button>
+    </div>
+  </div>
+  <button class="sidebar-toggle" id="sidebarToggle">◀</button>
+  <div class="main-area">
+    <div class="result-bar">
+      <div class="count-display">
+        <div class="count-number" id="countNumber">—</div>
+        <div class="count-label">個<br>検出</div>
+      </div>
+      <span class="status-pill" id="statusPill">待機中</span>
+      <div class="result-detail" id="detailText">画像を読み込むかカメラを開始してください</div>
+    </div>
+    <div class="canvas-area" id="canvasArea">
+      <canvas id="canvas"></canvas>
+      <div class="canvas-hint">枠をドラッグ → 移動　右下角をドラッグ → リサイズ</div>
+    </div>
+  </div>
+</div>
+<div class="mobile-bar">
+  <button class="btn btn-ghost" id="mobileSettingsBtn">⚙ 設定</button>
+  <button class="btn btn-primary" id="mobileAnalyzeBtn">▶ 解析</button>
+  <button class="btn btn-success" id="mobileStartBtn">🔴 開始</button>
+  <button class="btn btn-warn" id="mobileStopBtn">⏹</button>
+</div>
+<script>
+const STORAGE_KEY='defectCounter_v2';
+const HANDLE_MARGIN=14, MIN_SIZE=20;
+const fileInput=document.getElementById('fileInput');
+const refFileInput=document.getElementById('refFileInput');
+const refFileCount=document.getElementById('refFileCount');
+const startXInput=document.getElementById('startX');
+const startYInput=document.getElementById('startY');
+const boxWInput=document.getElementById('boxW');
+const boxHInput=document.getElementById('boxH');
+const methodSelect=document.getElementById('methodSelect');
+const detectModeSelect=document.getElementById('detectMode');
+const thresholdInput=document.getElementById('threshold');
+const diffThresholdInput=document.getElementById('diffThreshold');
+const contrastThresholdInput=document.getElementById('contrastThreshold');
+const minAreaInput=document.getElementById('minArea');
+const maxAreaInput=document.getElementById('maxArea');
+const minCircularityInput=document.getElementById('minCircularity');
+const minDiameterInput=document.getElementById('minDiameter');
+const maxDiameterInput=document.getElementById('maxDiameter');
+const mergeDistanceInput=document.getElementById('mergeDistance');
+const alertThresholdInput=document.getElementById('alertThreshold');
+const countNumber=document.getElementById('countNumber');
+const statusPill=document.getElementById('statusPill');
+const detailText=document.getElementById('detailText');
+const logList=document.getElementById('logList');
+const canvas=document.getElementById('canvas');
+const ctx=canvas.getContext('2d',{willReadFrequently:true});
+const sidebar=document.getElementById('sidebar');
+const sidebarToggle=document.getElementById('sidebarToggle');
+const messageBox=document.getElementById('messageBox');
+const img=new Image();
+const refImages=[];
+const video=document.createElement('video');
+video.autoplay=true; video.playsInline=true; video.muted=true;
+let imageLoaded=false,refLoaded=false,mediaStream=null,cameraActive=false;
+let realtimeRunning=false,animationId=null,box=null,logEntries=[];
+let currentImageUrl=null,currentRefImageUrls=[];
+const dragState={active:false,mode:null,startX:0,startY:0,origX:0,origY:0,origW:0,origH:0};
+
+function showMessage(text){messageBox.textContent=text;messageBox.classList.add('show');}
+function clearMessage(){messageBox.textContent='';messageBox.classList.remove('show');}
+function revokeUrl(url){if(url) URL.revokeObjectURL(url);}
+function isUnsupportedFile(file){const name=(file.name||'').toLowerCase();const type=(file.type||'').toLowerCase();return type.includes('heic') || type.includes('heif') || name.endsWith('.heic') || name.endsWith('.heif');}
+sidebarToggle.addEventListener('click',()=>{sidebar.classList.toggle('collapsed');const c=sidebar.classList.contains('collapsed');sidebarToggle.textContent=c?'▶':'◀';sidebarToggle.style.left=c?'0px':'300px';});
+document.querySelectorAll('.tab-btn').forEach(btn=>{btn.addEventListener('click',()=>{document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));btn.classList.add('active');document.getElementById('tab-'+btn.dataset.tab).classList.add('active');});});
+function getSettings(){return{startX:+startXInput.value,startY:+startYInput.value,boxW:+boxWInput.value,boxH:+boxHInput.value,method:methodSelect.value,detectMode:detectModeSelect.value,threshold:+thresholdInput.value,diffThreshold:+diffThresholdInput.value,contrastThreshold:+contrastThresholdInput.value,minArea:+minAreaInput.value,maxArea:+maxAreaInput.value,minCircularity:+minCircularityInput.value,minDiameter:+minDiameterInput.value,maxDiameter:+maxDiameterInput.value,mergeDistance:+mergeDistanceInput.value,alertThreshold:+alertThresholdInput.value,box};}
+function applySettings(s){startXInput.value=s.startX??50;startYInput.value=s.startY??50;boxWInput.value=s.boxW??350;boxHInput.value=s.boxH??250;methodSelect.value=s.method??'hybrid';detectModeSelect.value=s.detectMode??'dark';thresholdInput.value=s.threshold??90;diffThresholdInput.value=s.diffThreshold??30;contrastThresholdInput.value=s.contrastThreshold??16;minAreaInput.value=s.minArea??80;maxAreaInput.value=s.maxArea??2500;minCircularityInput.value=s.minCircularity??0.45;minDiameterInput.value=s.minDiameter??8;maxDiameterInput.value=s.maxDiameter??80;mergeDistanceInput.value=s.mergeDistance??12;alertThresholdInput.value=s.alertThreshold??0;}
+function saveSettings(){localStorage.setItem(STORAGE_KEY,JSON.stringify(getSettings()));showDetail('設定を保存しました');}
+function loadSettings(){const raw=localStorage.getItem(STORAGE_KEY);if(!raw)return;try{const s=JSON.parse(raw);applySettings(s);box=s.box||null;if(imageLoaded)redraw();}catch(e){}}
+function clearSettings(){localStorage.removeItem(STORAGE_KEY);showDetail('設定を削除しました');}
+document.getElementById('saveSettingsBtn').addEventListener('click',saveSettings);
+document.getElementById('loadSettingsBtn').addEventListener('click',()=>{loadSettings();if(!box)createOrUpdateBox();redraw();showDetail('設定を読み込みました');});
+document.getElementById('clearSettingsBtn').addEventListener('click',clearSettings);
+function setStatus(type,text){statusPill.className='status-pill '+type;statusPill.textContent=text;}
+function showDetail(text){detailText.textContent=text;}
+function updateCount(n){if(n===null){countNumber.textContent='—';countNumber.className='count-number';return;}countNumber.textContent=n;const a=+alertThresholdInput.value;countNumber.className='count-number'+(n>a&&a>=0?' danger':'');}
+function addLog(count){const now=new Date();const time=now.toTimeString().slice(0,8);const a=+alertThresholdInput.value;logEntries.unshift({time,count,over:count>a&&a>=0});if(logEntries.length>100)logEntries.pop();renderLog();}
+function renderLog(){if(!logEntries.length){logList.innerHTML='<li style="color:var(--sub);font-size:12px;padding:8px 0;">解析を実行すると履歴が記録されます</li>';return;}logList.innerHTML=logEntries.map(e=>`<li class="log-item"><span class="log-time">${e.time}</span><span class="log-count${e.over?' danger':''}">${e.count}個</span><span class="log-note">${e.over?'⚠ しきい値超過':'正常'}</span></li>`).join('');}
+document.getElementById('clearLogBtn').addEventListener('click',()=>{logEntries=[];renderLog();});
+function createOrUpdateBox(){box={x:+startXInput.value,y:+startYInput.value,w:+boxWInput.value,h:+boxHInput.value,count:0};redraw();}
+function syncInputsFromBox(){if(!box)return;startXInput.value=Math.round(box.x);startYInput.value=Math.round(box.y);boxWInput.value=Math.round(box.w);boxHInput.value=Math.round(box.h);}
+function loadImageFromFile(file){clearMessage();if(isUnsupportedFile(file)){imageLoaded=false;showMessage('HEIC/HEIF画像はこのHTMLで読み込めない場合があります。JPGかPNGに変換してから選んでください。');showDetail('画像形式が未対応です');setStatus('', '待機中');return;}revokeUrl(currentImageUrl);currentImageUrl=URL.createObjectURL(file);img.onload=()=>{canvas.width=img.naturalWidth||img.width;canvas.height=img.naturalHeight||img.height;imageLoaded=true;if(!box)createOrUpdateBox();redraw();setStatus('ready','画像読込済み');showDetail('画像を読み込みました。枠をドラッグで調整してから解析してください。');};img.onerror=()=>{imageLoaded=false;showMessage('画像の読み込みに失敗しました。JPG/PNG/WebP/BMPで試してください。');showDetail('画像を読み込めませんでした');setStatus('', '待機中');};img.src=currentImageUrl;}
+async function loadReferenceFromFiles(fileList){
+  clearMessage();
+  refLoaded=false;
+  refImages.length=0;
+  currentRefImageUrls.forEach(revokeUrl);
+  currentRefImageUrls=[];
+  const files=Array.from(fileList||[]).slice(0,10);
+  if(!files.length){
+    refFileCount.textContent='基準画像: 0枚';
+    showDetail('基準画像を未設定にしました');
+    return;
+  }
+  for(const file of files){
+    if(isUnsupportedFile(file)){
+      showMessage('基準画像にHEIC/HEIFは使えません。JPGかPNGに変換してください。');
+      showDetail('基準画像形式が未対応です');
+      refFileCount.textContent=`基準画像: ${refImages.length}枚`;
+      return;
+    }
+  }
+  try{
+    const loaded=await Promise.all(files.map(file=>new Promise((resolve,reject)=>{
+      const url=URL.createObjectURL(file);
+      const im=new Image();
+      im.onload=()=>resolve({img:im,url,name:file.name});
+      im.onerror=()=>{URL.revokeObjectURL(url);reject(new Error(file.name||'基準画像'));};
+      im.src=url;
+    })));
+    loaded.forEach(item=>{
+      refImages.push(item.img);
+      currentRefImageUrls.push(item.url);
+    });
+    refLoaded=refImages.length>0;
+    refFileCount.textContent=`基準画像: ${refImages.length}枚`;
+    showDetail(`基準画像を${refImages.length}枚 読み込みました`);
+  }catch(e){
+    refLoaded=false;
+    refImages.length=0;
+    currentRefImageUrls.forEach(revokeUrl);
+    currentRefImageUrls=[];
+    refFileCount.textContent='基準画像: 0枚';
+    showMessage('基準画像の読み込みに失敗しました。JPG/PNG/WebP/BMPで試してください。');
+    showDetail('基準画像を読み込めませんでした');
+  }
+}
+async function startCamera(){try{clearMessage();stopRealtime();stopCameraTracks();mediaStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});video.srcObject=mediaStream;await video.play();canvas.width=video.videoWidth||1280;canvas.height=video.videoHeight||720;imageLoaded=true;cameraActive=true;if(!box)createOrUpdateBox();redraw();setStatus('camera','カメラ起動中');showDetail('枠を対象範囲に合わせてからスタートを押してください');}catch(e){setStatus('','待機中');showDetail('カメラを起動できませんでした。ブラウザの権限を確認してください。');showMessage('Androidでは「安全ではありません」と出る環境だと、file://直開きではカメラが使えないことがあります。https か localhost で開いてください。');}}
+function stopCameraTracks(){if(mediaStream){mediaStream.getTracks().forEach(t=>t.stop());mediaStream=null;}cameraActive=false;}
+function startRealtime(){if(!cameraActive){showDetail('先にカメラ開始を押してください');return;}if(!box)createOrUpdateBox();if(realtimeRunning)return;realtimeRunning=true;setStatus('running','リアルタイム認識中');runRealtimeLoop();}
+function stopRealtime(){realtimeRunning=false;if(animationId){cancelAnimationFrame(animationId);animationId=null;}if(cameraActive)setStatus('camera','カメラ起動中（停止）');else setStatus('','待機中');}
+function runRealtimeLoop(){if(!realtimeRunning)return;analyzeCurrentFrame(true);animationId=requestAnimationFrame(runRealtimeLoop);}
+function redraw(){if(!imageLoaded)return;ctx.clearRect(0,0,canvas.width,canvas.height);if(cameraActive&&video.readyState>=2)ctx.drawImage(video,0,0,canvas.width,canvas.height);else ctx.drawImage(img,0,0);drawBox();}
+function drawBox(){if(!box)return;ctx.save();ctx.strokeStyle='#4fc3f7';ctx.lineWidth=2;ctx.setLineDash([6,3]);ctx.strokeRect(box.x,box.y,box.w,box.h);ctx.setLineDash([]);ctx.fillStyle='rgba(79,195,247,0.04)';ctx.fillRect(box.x,box.y,box.w,box.h);const cnt=box.count||0;const a=+alertThresholdInput.value;const lc=cnt>a&&a>=0?'#ff5a5a':'#00e5a0';const lt=`${cnt}個`;ctx.font='bold 16px monospace';const tw=ctx.measureText(lt).width;ctx.fillStyle='rgba(15,17,23,.75)';ctx.fillRect(box.x,Math.max(0,box.y-26),tw+14,22);ctx.fillStyle=lc;ctx.fillText(lt,box.x+7,Math.max(16,box.y-9));ctx.fillStyle='#4fc3f7';ctx.fillRect(box.x+box.w-10,box.y+box.h-10,10,10);ctx.restore();}
+function getGrayAt(data,fw,x,y){const i=(y*fw+x)*4;return 0.299*data[i]+0.587*data[i+1]+0.114*data[i+2];}
+function computeReferenceGray(w,h){
+  if(!refLoaded||!refImages.length)return null;
+  const tmp=document.createElement('canvas');
+  tmp.width=w;tmp.height=h;
+  const tc=tmp.getContext('2d',{willReadFrequently:true});
+  const sums=new Float32Array(w*h);
+  for(const refImg of refImages){
+    tc.clearRect(0,0,w,h);
+    tc.drawImage(refImg,0,0,w,h);
+    const d=tc.getImageData(0,0,w,h).data;
+    for(let i=0,p=0;i<sums.length;i++,p+=4){
+      sums[i]+=0.299*d[p]+0.587*d[p+1]+0.114*d[p+2];
+    }
+  }
+  const out=new Float32Array(w*h);
+  const n=refImages.length;
+  for(let i=0;i<out.length;i++) out[i]=sums[i]/n;
+  return out;
+}
+function dilate(mask,w,h){const out=new Uint8Array(mask.length);for(let y=0;y<h;y++)for(let x=0;x<w;x++){let hit=0;for(let yy=-1;yy<=1&&!hit;yy++)for(let xx=-1;xx<=1;xx++){const nx=x+xx,ny=y+yy;if(nx<0||ny<0||nx>=w||ny>=h)continue;if(mask[ny*w+nx]){hit=1;break;}}out[y*w+x]=hit;}return out;}
+function erode(mask,w,h){const out=new Uint8Array(mask.length);for(let y=0;y<h;y++)for(let x=0;x<w;x++){let hit=1;for(let yy=-1;yy<=1&&hit;yy++)for(let xx=-1;xx<=1;xx++){const nx=x+xx,ny=y+yy;if(nx<0||ny<0||nx>=w||ny>=h||!mask[ny*w+nx]){hit=0;break;}}out[y*w+x]=hit;}return out;}
+function openMask(m,w,h){return dilate(erode(m,w,h),w,h);}function closeMask(m,w,h){return erode(dilate(m,w,h),w,h);}
+function buildMask(gray,refGray,w,h){const method=methodSelect.value,dm=detectModeSelect.value;const thr=+thresholdInput.value,dThr=+diffThresholdInput.value,cThr=+contrastThresholdInput.value;const mask=new Uint8Array(w*h);for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=y*w+x,g=gray[i];const b=dm==='dark'?g<thr:g>thr;let sum=0,cnt=0;for(let yy=-2;yy<=2;yy++)for(let xx=-2;xx<=2;xx++){const nx=x+xx,ny=y+yy;if(nx<0||ny<0||nx>=w||ny>=h||(xx===0&&yy===0))continue;sum+=gray[ny*w+nx];cnt++;}const lm=cnt?sum/cnt:g;const c=(dm==='dark'?lm-g:g-lm)>cThr;const d=refGray?Math.abs(g-refGray[i])>dThr:false;let hit=false;if(method==='brightness')hit=b;else if(method==='contrast')hit=c;else if(method==='referenceDiff')hit=d;else hit=refGray?((b&&c)||d):(b&&c);mask[i]=hit?1:0;}return closeMask(openMask(mask,w,h),w,h);}
+function findComponents(mask,w,h){const visited=new Uint8Array(mask.length);const qx=new Int32Array(mask.length),qy=new Int32Array(mask.length);const comps=[];for(let y=0;y<h;y++)for(let x=0;x<w;x++){const pos=y*w+x;if(!mask[pos]||visited[pos])continue;let head=0,tail=0;visited[pos]=1;qx[tail]=x;qy[tail]=y;tail++;let area=0,minX=x,minY=y,maxX=x,maxY=y,perimeter=0;while(head<tail){const cx=qx[head],cy=qy[head];head++;area++;if(cx<minX)minX=cx;if(cy<minY)minY=cy;if(cx>maxX)maxX=cx;if(cy>maxY)maxY=cy;for(const[nx,ny]of[[cx-1,cy],[cx+1,cy],[cx,cy-1],[cx,cy+1]])if(nx<0||ny<0||nx>=w||ny>=h||!mask[ny*w+nx])perimeter++;for(const[nx,ny]of[[cx-1,cy],[cx+1,cy],[cx,cy-1],[cx,cy+1],[cx-1,cy-1],[cx+1,cy-1],[cx-1,cy+1],[cx+1,cy+1]]){if(nx<0||ny<0||nx>=w||ny>=h)continue;const np=ny*w+nx;if(!mask[np]||visited[np])continue;visited[np]=1;qx[tail]=nx;qy[tail]=ny;tail++;}}const bw=maxX-minX+1,bh=maxY-minY+1,diameter=(bw+bh)/2,circularity=perimeter>0?(4*Math.PI*area)/(perimeter*perimeter):0;comps.push({minX,minY,maxX,maxY,area,perimeter,bw,bh,diameter,circularity,cx:(minX+maxX)/2,cy:(minY+maxY)/2});}return comps;}
+function filterAndMergeCircles(comps){const minArea=+minAreaInput.value,maxArea=+maxAreaInput.value,minCircularity=+minCircularityInput.value,minDiameter=+minDiameterInput.value,maxDiameter=+maxDiameterInput.value,mergeDist=+mergeDistanceInput.value;const filtered=comps.filter(c=>{const asp=Math.max(c.bw/Math.max(1,c.bh),c.bh/Math.max(1,c.bw));return c.area>=minArea&&c.area<=maxArea&&c.circularity>=minCircularity&&c.diameter>=minDiameter&&c.diameter<=maxDiameter&&asp<=1.8;});const merged=[];for(const c of filtered){let found=false;for(const m of merged){if(Math.hypot(c.cx-m.cx,c.cy-m.cy)<=mergeDist){m.minX=Math.min(m.minX,c.minX);m.minY=Math.min(m.minY,c.minY);m.maxX=Math.max(m.maxX,c.maxX);m.maxY=Math.max(m.maxY,c.maxY);m.cx=(m.minX+m.maxX)/2;m.cy=(m.minY+m.maxY)/2;found=true;break;}}if(!found)merged.push({...c});}return merged;}
+function drawCircles(x1,y1,circles){ctx.save();const a=+alertThresholdInput.value;const over=circles.length>a&&a>=0;circles.forEach((c,idx)=>{const cx=x1+(c.minX+c.maxX)/2,cy=y1+(c.minY+c.maxY)/2,r=Math.max(c.maxX-c.minX+1,c.maxY-c.minY+1)/2;ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fillStyle=over?'rgba(255,90,90,.18)':'rgba(0,229,160,.15)';ctx.fill();ctx.strokeStyle=over?'#ff5a5a':'#00e5a0';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle=over?'#ff5a5a':'#00e5a0';ctx.font='bold 13px monospace';ctx.fillText(String(idx+1),cx+4,cy-4);});ctx.restore();}
+function analyzeCurrentFrame(fromRealtime=false){try{if(!imageLoaded){showDetail('先に画像を読み込んでください');return;}if(!box)createOrUpdateBox();redraw();const x1=Math.max(0,Math.floor(box.x)),y1=Math.max(0,Math.floor(box.y)),x2=Math.min(canvas.width,Math.floor(box.x+box.w)),y2=Math.min(canvas.height,Math.floor(box.y+box.h)),w=Math.max(1,x2-x1),h=Math.max(1,y2-y1);const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);const gray=new Float32Array(w*h);for(let y=0;y<h;y++)for(let x=0;x<w;x++)gray[y*w+x]=getGrayAt(imageData.data,canvas.width,x1+x,y1+y);const refGray=computeReferenceGray(w,h);const mask=buildMask(gray,refGray,w,h);const comps=findComponents(mask,w,h);const circles=filterAndMergeCircles(comps);box.count=circles.length;drawCircles(x1,y1,circles);drawBox();updateCount(circles.length);const a=+alertThresholdInput.value;if(circles.length>a&&a>=0){showDetail(`⚠ 不良品 ${circles.length}個 検出 — しきい値（${a}個）を超えています`);}else{showDetail(`検出数: ${circles.length}個 — 正常範囲内`);}if(!fromRealtime){addLog(circles.length);if(cameraActive)setStatus('camera','手動解析完了（カメラ中）');else setStatus('ready','解析完了');}}catch(err){console.error(err);showMessage('解析中にエラーが発生しました。画像を変えるか、枠サイズを小さめにして試してください。');showDetail('解析エラー');}}
+function getCanvasPoint(e){const rect=canvas.getBoundingClientRect();const sx=canvas.width/rect.width,sy=canvas.height/rect.height;const cx=e.touches?e.touches[0].clientX:e.clientX,cy=e.touches?e.touches[0].clientY:e.clientY;return{x:(cx-rect.left)*sx,y:(cy-rect.top)*sy};}
+function pointerDown(e){if(!imageLoaded||!box)return;const p=getCanvasPoint(e);const inside=p.x>=box.x&&p.x<=box.x+box.w&&p.y>=box.y&&p.y<=box.y+box.h;if(!inside)return;e.preventDefault();const nr=Math.abs(p.x-(box.x+box.w))<=HANDLE_MARGIN,nb=Math.abs(p.y-(box.y+box.h))<=HANDLE_MARGIN;dragState.active=true;dragState.mode=(nr&&nb)?'resize':'move';dragState.startX=p.x;dragState.startY=p.y;dragState.origX=box.x;dragState.origY=box.y;dragState.origW=box.w;dragState.origH=box.h;canvas.className=dragState.mode==='resize'?'resize-cursor':'grabbing';}
+function pointerMove(e){if(!dragState.active||!box)return;e.preventDefault();const p=getCanvasPoint(e);const dx=p.x-dragState.startX,dy=p.y-dragState.startY;if(dragState.mode==='move'){box.x=dragState.origX+dx;box.y=dragState.origY+dy;}else{box.w=Math.max(MIN_SIZE,dragState.origW+dx);box.h=Math.max(MIN_SIZE,dragState.origH+dy);}syncInputsFromBox();redraw();}
+function pointerUp(){if(!dragState.active)return;dragState.active=false;canvas.className='';saveSettings();}
+document.getElementById('analyzeBtn').addEventListener('click',()=>{if(!imageLoaded){showDetail('先に画像を読み込むかカメラを開始してください');showMessage('まずJPGかPNG画像を選んでください。');return;}analyzeCurrentFrame(false);});
+document.getElementById('startCameraBtn').addEventListener('click',startCamera);
+document.getElementById('startRealtimeBtn').addEventListener('click',startRealtime);
+document.getElementById('stopRealtimeBtn').addEventListener('click',stopRealtime);
+document.getElementById('resetImageBtn').addEventListener('click',()=>{if(!imageLoaded)return;redraw();updateCount(null);setStatus('ready','画像再表示');showDetail('画像を再表示しました');});
+document.getElementById('createBoxBtn').addEventListener('click',()=>{if(!imageLoaded){showDetail('先に画像を読み込むかカメラを開始してください');return;}createOrUpdateBox();showDetail('枠を更新しました');});
+fileInput.addEventListener('change',e=>{const f=e.target.files && e.target.files[0]; if(!f)return; loadImageFromFile(f);});
+refFileInput.addEventListener('change',e=>{const files=e.target.files; loadReferenceFromFiles(files);});
+canvas.addEventListener('mousedown',pointerDown);canvas.addEventListener('mousemove',pointerMove);window.addEventListener('mouseup',pointerUp);canvas.addEventListener('touchstart',pointerDown,{passive:false});canvas.addEventListener('touchmove',pointerMove,{passive:false});window.addEventListener('touchend',pointerUp,{passive:false});
+document.getElementById('mobileSettingsBtn').addEventListener('click',()=>{sidebar.classList.toggle('mobile-open');});
+document.getElementById('mobileAnalyzeBtn').addEventListener('click',()=>{if(!imageLoaded){showDetail('先に画像を読み込んでください');showMessage('画像がまだ読み込まれていません。');return;}analyzeCurrentFrame(false);});
+document.getElementById('mobileStartBtn').addEventListener('click',startRealtime);
+document.getElementById('mobileStopBtn').addEventListener('click',stopRealtime);
+window.addEventListener('beforeunload',()=>{stopRealtime();stopCameraTracks();revokeUrl(currentImageUrl);currentRefImageUrls.forEach(revokeUrl);});
+loadSettings();
+</script>
+</body>
+</html>
