@@ -36,7 +36,6 @@
     .form-group input:focus,.form-group select:focus{border-color:var(--accent);}
     .form-group select option{background:#1a1d26;}
     .action-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px;border-bottom:1px solid var(--border);flex-shrink:0;}
-    .action-grid .btn-full{grid-column:1/-1;}
     .btn{border:none;border-radius:9px;padding:10px 12px;font-size:13px;font-family:'Noto Sans JP',sans-serif;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:opacity .15s,transform .1s;white-space:nowrap;}
     .btn:active{transform:scale(.96);}
     .btn:disabled{opacity:.4;cursor:not-allowed;}
@@ -112,7 +111,6 @@
 <div class="layout">
   <div class="sidebar" id="sidebar">
     <div class="action-grid">
-      <button class="btn btn-primary btn-full" id="analyzeBtn">▶ 1回解析</button>
       <button class="btn btn-ghost" id="startCameraBtn">📷 カメラ開始</button>
       <button class="btn btn-success" id="startRealtimeBtn">🔴 スタート</button>
       <button class="btn btn-warn" id="stopRealtimeBtn">⏹ ストップ</button>
@@ -127,9 +125,7 @@
     </div>
     <div class="tab-content active" id="tab-source">
       <div id="messageBox" class="message-box"></div>
-      <div class="section-label">画像ファイル</div>
-      <div class="file-drop"><div class="drop-icon">🖼️</div><div>解析する画像を選択</div><input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/bmp" /></div>
-      <div class="section-label" style="margin-top:12px">基準画像（最大10枚・差分用・任意）</div>
+      <div class="section-label">基準画像（最大10枚・差分用・任意）</div>
       <div class="file-drop"><div class="drop-icon">📋</div><div>基準画像を最大10枚選択</div><input type="file" id="refFileInput" accept="image/png,image/jpeg,image/webp,image/bmp" multiple /></div>
       <div style="margin-top:8px;font-size:11px;color:var(--sub);line-height:1.6;" id="refFileCount">基準画像: 0枚</div>
       <div class="section-label">検出枠の位置・サイズ</div>
@@ -206,7 +202,7 @@
         <div class="count-label">個<br>検出</div>
       </div>
       <span class="status-pill" id="statusPill">待機中</span>
-      <div class="result-detail" id="detailText">画像を読み込むかカメラを開始してください</div>
+      <div class="result-detail" id="detailText">カメラを開始してください</div>
     </div>
     <div class="canvas-area" id="canvasArea">
       <canvas id="canvas"></canvas>
@@ -216,14 +212,12 @@
 </div>
 <div class="mobile-bar">
   <button class="btn btn-ghost" id="mobileSettingsBtn">⚙ 設定</button>
-  <button class="btn btn-primary" id="mobileAnalyzeBtn">▶ 解析</button>
   <button class="btn btn-success" id="mobileStartBtn">🔴 開始</button>
   <button class="btn btn-warn" id="mobileStopBtn">⏹</button>
 </div>
 <script>
 const STORAGE_KEY='defectCounter_v2';
 const HANDLE_MARGIN=14, MIN_SIZE=20;
-const fileInput=document.getElementById('fileInput');
 const refFileInput=document.getElementById('refFileInput');
 const refFileCount=document.getElementById('refFileCount');
 const startXInput=document.getElementById('startX');
@@ -362,22 +356,19 @@ function buildMask(gray,refGray,w,h){const method=methodSelect.value,dm=detectMo
 function findComponents(mask,w,h){const visited=new Uint8Array(mask.length);const qx=new Int32Array(mask.length),qy=new Int32Array(mask.length);const comps=[];for(let y=0;y<h;y++)for(let x=0;x<w;x++){const pos=y*w+x;if(!mask[pos]||visited[pos])continue;let head=0,tail=0;visited[pos]=1;qx[tail]=x;qy[tail]=y;tail++;let area=0,minX=x,minY=y,maxX=x,maxY=y,perimeter=0;while(head<tail){const cx=qx[head],cy=qy[head];head++;area++;if(cx<minX)minX=cx;if(cy<minY)minY=cy;if(cx>maxX)maxX=cx;if(cy>maxY)maxY=cy;for(const[nx,ny]of[[cx-1,cy],[cx+1,cy],[cx,cy-1],[cx,cy+1]])if(nx<0||ny<0||nx>=w||ny>=h||!mask[ny*w+nx])perimeter++;for(const[nx,ny]of[[cx-1,cy],[cx+1,cy],[cx,cy-1],[cx,cy+1],[cx-1,cy-1],[cx+1,cy-1],[cx-1,cy+1],[cx+1,cy+1]]){if(nx<0||ny<0||nx>=w||ny>=h)continue;const np=ny*w+nx;if(!mask[np]||visited[np])continue;visited[np]=1;qx[tail]=nx;qy[tail]=ny;tail++;}}const bw=maxX-minX+1,bh=maxY-minY+1,diameter=(bw+bh)/2,circularity=perimeter>0?(4*Math.PI*area)/(perimeter*perimeter):0;comps.push({minX,minY,maxX,maxY,area,perimeter,bw,bh,diameter,circularity,cx:(minX+maxX)/2,cy:(minY+maxY)/2});}return comps;}
 function filterAndMergeCircles(comps){const minArea=+minAreaInput.value,maxArea=+maxAreaInput.value,minCircularity=+minCircularityInput.value,minDiameter=+minDiameterInput.value,maxDiameter=+maxDiameterInput.value,mergeDist=+mergeDistanceInput.value;const filtered=comps.filter(c=>{const asp=Math.max(c.bw/Math.max(1,c.bh),c.bh/Math.max(1,c.bw));return c.area>=minArea&&c.area<=maxArea&&c.circularity>=minCircularity&&c.diameter>=minDiameter&&c.diameter<=maxDiameter&&asp<=1.8;});const merged=[];for(const c of filtered){let found=false;for(const m of merged){if(Math.hypot(c.cx-m.cx,c.cy-m.cy)<=mergeDist){m.minX=Math.min(m.minX,c.minX);m.minY=Math.min(m.minY,c.minY);m.maxX=Math.max(m.maxX,c.maxX);m.maxY=Math.max(m.maxY,c.maxY);m.cx=(m.minX+m.maxX)/2;m.cy=(m.minY+m.maxY)/2;found=true;break;}}if(!found)merged.push({...c});}return merged;}
 function drawCircles(x1,y1,circles){ctx.save();const a=+alertThresholdInput.value;const over=circles.length>a&&a>=0;circles.forEach((c,idx)=>{const cx=x1+(c.minX+c.maxX)/2,cy=y1+(c.minY+c.maxY)/2,r=Math.max(c.maxX-c.minX+1,c.maxY-c.minY+1)/2;ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fillStyle=over?'rgba(255,90,90,.18)':'rgba(0,229,160,.15)';ctx.fill();ctx.strokeStyle=over?'#ff5a5a':'#00e5a0';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle=over?'#ff5a5a':'#00e5a0';ctx.font='bold 13px monospace';ctx.fillText(String(idx+1),cx+4,cy-4);});ctx.restore();}
-function analyzeCurrentFrame(fromRealtime=false){try{if(!imageLoaded){showDetail('先に画像を読み込んでください');return;}if(!box)createOrUpdateBox();redraw();const x1=Math.max(0,Math.floor(box.x)),y1=Math.max(0,Math.floor(box.y)),x2=Math.min(canvas.width,Math.floor(box.x+box.w)),y2=Math.min(canvas.height,Math.floor(box.y+box.h)),w=Math.max(1,x2-x1),h=Math.max(1,y2-y1);const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);const gray=new Float32Array(w*h);for(let y=0;y<h;y++)for(let x=0;x<w;x++)gray[y*w+x]=getGrayAt(imageData.data,canvas.width,x1+x,y1+y);const refGray=computeReferenceGray(w,h);const mask=buildMask(gray,refGray,w,h);const comps=findComponents(mask,w,h);const circles=filterAndMergeCircles(comps);box.count=circles.length;drawCircles(x1,y1,circles);drawBox();updateCount(circles.length);const a=+alertThresholdInput.value;if(circles.length>a&&a>=0){showDetail(`⚠ 不良品 ${circles.length}個 検出 — しきい値（${a}個）を超えています`);}else{showDetail(`検出数: ${circles.length}個 — 正常範囲内`);}if(!fromRealtime){addLog(circles.length);if(cameraActive)setStatus('camera','手動解析完了（カメラ中）');else setStatus('ready','解析完了');}}catch(err){console.error(err);showMessage('解析中にエラーが発生しました。画像を変えるか、枠サイズを小さめにして試してください。');showDetail('解析エラー');}}
+function analyzeCurrentFrame(fromRealtime=false){try{if(!imageLoaded){showDetail('先にカメラを開始してください');return;}if(!box)createOrUpdateBox();redraw();const x1=Math.max(0,Math.floor(box.x)),y1=Math.max(0,Math.floor(box.y)),x2=Math.min(canvas.width,Math.floor(box.x+box.w)),y2=Math.min(canvas.height,Math.floor(box.y+box.h)),w=Math.max(1,x2-x1),h=Math.max(1,y2-y1);const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);const gray=new Float32Array(w*h);for(let y=0;y<h;y++)for(let x=0;x<w;x++)gray[y*w+x]=getGrayAt(imageData.data,canvas.width,x1+x,y1+y);const refGray=computeReferenceGray(w,h);const mask=buildMask(gray,refGray,w,h);const comps=findComponents(mask,w,h);const circles=filterAndMergeCircles(comps);box.count=circles.length;drawCircles(x1,y1,circles);drawBox();updateCount(circles.length);const a=+alertThresholdInput.value;if(circles.length>a&&a>=0){showDetail(`⚠ 不良品 ${circles.length}個 検出 — しきい値（${a}個）を超えています`);}else{showDetail(`検出数: ${circles.length}個 — 正常範囲内`);}if(!fromRealtime){addLog(circles.length);if(cameraActive)setStatus('camera','手動解析完了（カメラ中）');else setStatus('ready','解析完了');}}catch(err){console.error(err);showMessage('解析中にエラーが発生しました。枠サイズを小さめにして試してください。');showDetail('解析エラー');}}
 function getCanvasPoint(e){const rect=canvas.getBoundingClientRect();const sx=canvas.width/rect.width,sy=canvas.height/rect.height;const cx=e.touches?e.touches[0].clientX:e.clientX,cy=e.touches?e.touches[0].clientY:e.clientY;return{x:(cx-rect.left)*sx,y:(cy-rect.top)*sy};}
 function pointerDown(e){if(!imageLoaded||!box)return;const p=getCanvasPoint(e);const inside=p.x>=box.x&&p.x<=box.x+box.w&&p.y>=box.y&&p.y<=box.y+box.h;if(!inside)return;e.preventDefault();const nr=Math.abs(p.x-(box.x+box.w))<=HANDLE_MARGIN,nb=Math.abs(p.y-(box.y+box.h))<=HANDLE_MARGIN;dragState.active=true;dragState.mode=(nr&&nb)?'resize':'move';dragState.startX=p.x;dragState.startY=p.y;dragState.origX=box.x;dragState.origY=box.y;dragState.origW=box.w;dragState.origH=box.h;canvas.className=dragState.mode==='resize'?'resize-cursor':'grabbing';}
 function pointerMove(e){if(!dragState.active||!box)return;e.preventDefault();const p=getCanvasPoint(e);const dx=p.x-dragState.startX,dy=p.y-dragState.startY;if(dragState.mode==='move'){box.x=dragState.origX+dx;box.y=dragState.origY+dy;}else{box.w=Math.max(MIN_SIZE,dragState.origW+dx);box.h=Math.max(MIN_SIZE,dragState.origH+dy);}syncInputsFromBox();redraw();}
 function pointerUp(){if(!dragState.active)return;dragState.active=false;canvas.className='';saveSettings();}
-document.getElementById('analyzeBtn').addEventListener('click',()=>{if(!imageLoaded){showDetail('先に画像を読み込むかカメラを開始してください');showMessage('まずJPGかPNG画像を選んでください。');return;}analyzeCurrentFrame(false);});
 document.getElementById('startCameraBtn').addEventListener('click',startCamera);
 document.getElementById('startRealtimeBtn').addEventListener('click',startRealtime);
 document.getElementById('stopRealtimeBtn').addEventListener('click',stopRealtime);
 document.getElementById('resetImageBtn').addEventListener('click',()=>{if(!imageLoaded)return;redraw();updateCount(null);setStatus('ready','画像再表示');showDetail('画像を再表示しました');});
-document.getElementById('createBoxBtn').addEventListener('click',()=>{if(!imageLoaded){showDetail('先に画像を読み込むかカメラを開始してください');return;}createOrUpdateBox();showDetail('枠を更新しました');});
-fileInput.addEventListener('change',e=>{const f=e.target.files && e.target.files[0]; if(!f)return; loadImageFromFile(f);});
+document.getElementById('createBoxBtn').addEventListener('click',()=>{if(!imageLoaded){showDetail('先にカメラを開始してください');return;}createOrUpdateBox();showDetail('枠を更新しました');});
 refFileInput.addEventListener('change',e=>{const files=e.target.files; loadReferenceFromFiles(files);});
 canvas.addEventListener('mousedown',pointerDown);canvas.addEventListener('mousemove',pointerMove);window.addEventListener('mouseup',pointerUp);canvas.addEventListener('touchstart',pointerDown,{passive:false});canvas.addEventListener('touchmove',pointerMove,{passive:false});window.addEventListener('touchend',pointerUp,{passive:false});
 document.getElementById('mobileSettingsBtn').addEventListener('click',()=>{sidebar.classList.toggle('mobile-open');});
-document.getElementById('mobileAnalyzeBtn').addEventListener('click',()=>{if(!imageLoaded){showDetail('先に画像を読み込んでください');showMessage('画像がまだ読み込まれていません。');return;}analyzeCurrentFrame(false);});
 document.getElementById('mobileStartBtn').addEventListener('click',startRealtime);
 document.getElementById('mobileStopBtn').addEventListener('click',stopRealtime);
 window.addEventListener('beforeunload',()=>{stopRealtime();stopCameraTracks();revokeUrl(currentImageUrl);currentRefImageUrls.forEach(revokeUrl);});
